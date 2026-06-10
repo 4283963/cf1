@@ -25,33 +25,21 @@ public class TransferRequestController {
 
     @PostMapping
     public Result<TransferRequest> create(@RequestBody TransferRequest request) {
-        try {
-            TransferRequest created = transferRequestService.createTransfer(request);
-            return Result.ok(created);
-        } catch (RuntimeException e) {
-            return Result.fail(e.getMessage());
-        }
+        TransferRequest created = transferRequestService.createTransfer(request);
+        return Result.ok(created);
     }
 
     @PutMapping("/{id}/approve")
     public Result<TransferRequest> approve(@PathVariable Long id, @RequestBody Map<String, String> body) {
-        try {
-            String approver = body.getOrDefault("approver", "管理员");
-            TransferRequest approved = transferRequestService.approveTransfer(id, approver);
-            return Result.ok(approved);
-        } catch (RuntimeException e) {
-            return Result.fail(e.getMessage());
-        }
+        String approver = body.getOrDefault("approver", "管理员");
+        TransferRequest approved = transferRequestService.approveTransfer(id, approver);
+        return Result.ok(approved);
     }
 
     @PutMapping("/{id}/reject")
     public Result<TransferRequest> reject(@PathVariable Long id, @RequestBody Map<String, String> body) {
-        try {
-            String approver = body.getOrDefault("approver", "管理员");
-            TransferRequest rejected = transferRequestService.rejectTransfer(id, approver);
-            return Result.ok(rejected);
-        } catch (RuntimeException e) {
-            return Result.fail(e.getMessage());
-        }
+        String approver = body.getOrDefault("approver", "管理员");
+        TransferRequest rejected = transferRequestService.rejectTransfer(id, approver);
+        return Result.ok(rejected);
     }
 }

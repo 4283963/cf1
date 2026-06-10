@@ -72,7 +72,7 @@
         </el-form-item>
 
         <el-form-item>
-          <el-button type="primary" @click="submitForm" :loading="submitting">提交申请</el-button>
+          <el-button type="primary" @click="submitForm" :loading="submitting" :disabled="submitting">提交申请</el-button>
           <el-button @click="resetForm">重置</el-button>
         </el-form-item>
       </el-form>
@@ -191,10 +191,15 @@ async function loadTransfers() {
 }
 
 async function submitForm() {
-  const valid = await formRef.value.validate().catch(() => false)
-  if (!valid) return
-
+  if (submitting.value) return
   submitting.value = true
+
+  const valid = await formRef.value.validate().catch(() => false)
+  if (!valid) {
+    submitting.value = false
+    return
+  }
+
   try {
     const payload = { ...form.value }
     if (payload.itemType !== 'LIVE') {
