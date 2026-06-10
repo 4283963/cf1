@@ -3,8 +3,10 @@ package com.pet.transfer.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.pet.transfer.entity.Inventory;
+import com.pet.transfer.entity.LivePet;
 import com.pet.transfer.entity.TransferRequest;
 import com.pet.transfer.mapper.InventoryMapper;
+import com.pet.transfer.mapper.LivePetMapper;
 import com.pet.transfer.mapper.TransferRequestMapper;
 import com.pet.transfer.service.TransferRequestService;
 import org.springframework.stereotype.Service;
@@ -23,13 +25,15 @@ public class TransferRequestServiceImpl extends ServiceImpl<TransferRequestMappe
         implements TransferRequestService {
 
     private final InventoryMapper inventoryMapper;
+    private final LivePetMapper livePetMapper;
 
     private final AtomicInteger counter = new AtomicInteger(0);
 
     private final ConcurrentHashMap<String, ReentrantLock> businessLockMap = new ConcurrentHashMap<>();
 
-    public TransferRequestServiceImpl(InventoryMapper inventoryMapper) {
+    public TransferRequestServiceImpl(InventoryMapper inventoryMapper, LivePetMapper livePetMapper) {
         this.inventoryMapper = inventoryMapper;
+        this.livePetMapper = livePetMapper;
     }
 
     @Override
@@ -189,6 +193,126 @@ public class TransferRequestServiceImpl extends ServiceImpl<TransferRequestMappe
     @Override
     public List<TransferRequest> listWithStoreNames() {
         return baseMapper.selectWithStoreNames();
+    }
+
+    @Override
+    @Transactional
+    public TransferRequest shipTransfer(Long id, String shipper, String driver, int estimatedHours) {
+        String lockKey = "ship:" + id;
+        ReentrantLock lock = businessLockMap.computeIfAbsent(lockKey, k -> new ReentrantLock());
+
+        try {
+            if (!lock.tryLock(0, TimeUnit.SECONDS)) {
+                throw new RuntimeException("正在处理中，请稍候再试");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("操作被中断，请重试");
+        }
+
+        try {
+            TransferRequest request = getById(id);
+            if (request == null) {
+                throw new RuntimeException("调拨申请不存在");
+            }
+            if (!"APPROVED".equals(request.getStatus())) {
+                throw new RuntimeException("当前状态不允许发货: " + request.getStatus());
+            }
+            if (!"LIVE".equals(request.getItemType())) {
+                throw new RuntimeException("只有活体调拨需要运输打卡");
+            }
+
+            request.setStatus("SHIPPING");
+            request.setShipper(shipper);
+            request.setDriver(driver);
+            request.setShippedAt(LocalDateTime.now());
+            if (estimatedHours > 0) {
+                request.setEstimatedArrival(LocalDateTime.now().plusHours(estimatedHours));
+            }
+            request.setUpdatedAt(LocalDateTime.now());
+            updateById(request);
+
+            LambdaQueryWrapper<LivePet> petWrapper = new LambdaQueryWrapper<>();
+            petWrapper.eq(LivePet::getStoreId, request.getFromStoreId())
+                    .eq(LivePet::getBreed, request.getBreed())
+                    .eq(LivePet::getTransportStatus, "IN_STORE")
+                    .last("LIMIT " + request.getQuantity());
+            List<LivePet> pets = livePetMapper.selectList(petWrapper);
+
+            if (pets.size() < request.getQuantity()) {
+                throw new RuntimeException("店内可用活体不足，需要 " + request.getQuantity() + " 只，实际 " + pets.size() + " 只");
+            }
+
+            for (LivePet pet : pets) {
+                pet.setTransferId(id);
+                pet.setTransportStatus("SHIPPING");
+                pet.setStoreId(request.getToStoreId());
+                pet.setUpdatedAt(LocalDateTime.now());
+                livePetMapper.updateById(pet);
+            }
+
+            return request;
+        } finally {
+            lock.unlock();
+            businessLockMap.remove(lockKey, lock);
+        }
+    }
+
+    @Override
+    @Transactional
+    public TransferRequest completeTransfer(Long id) {
+        String lockKey = "complete:" + id;
+        ReentrantLock lock = businessLockMap.computeIfAbsent(lockKey, k -> new ReentrantLock());
+
+        try {
+            if (!lock.tryLock(0, TimeUnit.SECONDS)) {
+                throw new RuntimeException("正在处理中，请稍候再试");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("操作被中断，请重试");
+        }
+
+        try {
+            TransferRequest request = getById(id);
+            if (request == null) {
+                throw new RuntimeException("调拨申请不存在");
+            }
+            if (!"SHIPPING".equals(request.getStatus())) {
+                throw new RuntimeException("当前状态不允许确认到达: " + request.getStatus());
+            }
+
+            request.setStatus("COMPLETED");
+            request.setUpdatedAt(LocalDateTime.now());
+            updateById(request);
+
+            LambdaQueryWrapper<LivePet> petWrapper = new LambdaQueryWrapper<>();
+            petWrapper.eq(LivePet::getTransferId, id);
+            List<LivePet> pets = livePetMapper.selectList(petWrapper);
+            for (LivePet pet : pets) {
+                pet.setTransportStatus("ARRIVED");
+                pet.setTransferId(null);
+                pet.setUpdatedAt(LocalDateTime.now());
+                livePetMapper.updateById(pet);
+            }
+
+            return request;
+        } finally {
+            lock.unlock();
+            businessLockMap.remove(lockKey, lock);
+        }
+    }
+
+    @Override
+    public List<TransferRequest> listShipping() {
+        return lambdaQuery().eq(TransferRequest::getStatus, "SHIPPING").list();
+    }
+
+    @Override
+    public List<LivePet> listPetsInTransfer(Long transferId) {
+        return livePetMapper.selectList(
+                new LambdaQueryWrapper<LivePet>().eq(LivePet::getTransferId, transferId)
+        );
     }
 
     private String generateRequestNo() {

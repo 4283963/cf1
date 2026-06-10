@@ -118,13 +118,20 @@
           </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="申请时间" width="170" />
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column label="操作" width="260" fixed="right">
           <template #default="{ row }">
             <template v-if="row.status === 'PENDING'">
               <el-button type="success" size="small" @click="handleApprove(row)">通过</el-button>
               <el-button type="danger" size="small" @click="handleReject(row)">驳回</el-button>
             </template>
-            <span v-else style="color: #999; font-size: 13px">已处理</span>
+            <template v-else-if="row.status === 'APPROVED' && row.itemType === 'LIVE'">
+              <el-button type="primary" size="small" @click="handleShip(row)">发货</el-button>
+            </template>
+            <template v-else-if="row.status === 'SHIPPING'">
+              <el-button type="warning" size="small" @click="goToDriver(row)">🚚 打卡</el-button>
+              <el-button type="success" size="small" @click="handleComplete(row)">到达</el-button>
+            </template>
+            <span v-else style="color: #999; font-size: 13px">{{ statusLabel(row.status) }}</span>
           </template>
         </el-table-column>
       </el-table>
@@ -134,9 +141,11 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getStores, getInventories, getTransfers, createTransfer, approveTransfer, rejectTransfer } from '../api/transfer'
+import { getStores, getInventories, getTransfers, createTransfer, approveTransfer, rejectTransfer, shipTransfer, completeTransfer } from '../api/transfer'
 
+const router = useRouter()
 const stores = ref([])
 const transfers = ref([])
 const fromStoreItems = ref([])
@@ -255,13 +264,58 @@ async function handleReject(row) {
   }
 }
 
+async function handleShip(row) {
+  try {
+    const { value } = await ElMessageBox.prompt(
+      `请输入司机姓名和预计运输时间（小时）`,
+      `发货确认 - ${row.requestNo}`,
+      {
+        confirmButtonText: '确认发货',
+        cancelButtonText: '取消',
+        inputPlaceholder: '司机姓名,预计小时数，如：王师傅,3',
+        inputValue: '王师傅,3'
+      }
+    )
+    const [driver, hours] = value.split(',').map(s => s.trim())
+    const estimatedHours = parseInt(hours) || 0
+    await shipTransfer(row.id, { shipper: '管理员', driver, estimatedHours })
+    ElMessage.success('发货成功！宠物状态已更新为运输中')
+    await loadTransfers()
+  } catch (e) {
+    if (e !== 'cancel') {
+      ElMessage.error(e.message || '发货失败')
+    }
+  }
+}
+
+async function handleComplete(row) {
+  try {
+    await ElMessageBox.confirm(
+      `确认 ${row.requestNo} 已安全到达目的地？`,
+      '到达确认',
+      { type: 'success', confirmButtonText: '确认到达', cancelButtonText: '取消' }
+    )
+    await completeTransfer(row.id)
+    ElMessage.success('已确认到达！')
+    await loadTransfers()
+  } catch (e) {
+    if (e !== 'cancel') {
+      ElMessage.error(e.message || '操作失败')
+    }
+  }
+}
+
+function goToDriver(row) {
+  router.push({ path: '/driver', query: { transferId: row.id } })
+}
+
 function statusTagType(status) {
-  const map = { PENDING: 'warning', APPROVED: 'success', REJECTED: 'danger', COMPLETED: 'info' }
+  const map = { PENDING: 'warning', APPROVED: 'success', SHIPPING: 'primary', COMPLETED: 'info', REJECTED: 'danger' }
   return map[status] || 'info'
 }
 
 function statusLabel(status) {
-  const map = { PENDING: '待审批', APPROVED: '已通过', REJECTED: '已驳回', COMPLETED: '已完成' }
+  const map = { PENDING: '待审批', APPROVED: '已通过', SHIPPING: '🚚 运输中', COMPLETED: '已完成', REJECTED: '已驳回' }
   return map[status] || status
 }
 </script>

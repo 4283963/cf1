@@ -32,12 +32,14 @@ CREATE TABLE live_pet (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     inventory_id BIGINT COMMENT '关联库存ID',
     store_id BIGINT NOT NULL COMMENT '当前所在分店',
+    transfer_id BIGINT COMMENT '运输中关联的调拨单ID',
     name VARCHAR(100) COMMENT '宠物昵称',
     species VARCHAR(50) NOT NULL COMMENT '物种: 猫/狗',
     breed VARCHAR(100) NOT NULL COMMENT '品种',
     gender VARCHAR(10) COMMENT '性别',
     birth_date DATE COMMENT '出生日期',
     health_status VARCHAR(50) DEFAULT '健康' COMMENT '健康状态',
+    transport_status VARCHAR(20) DEFAULT 'IN_STORE' COMMENT '运输状态: IN_STORE店内/SHIPPING运输中/ARRIVED已到达',
     last_vaccine_date DATE COMMENT '最近接种日期',
     vaccine_records TEXT COMMENT '疫苗接种记录(JSON)',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -53,13 +55,32 @@ CREATE TABLE transfer_request (
     item_name VARCHAR(100) NOT NULL COMMENT '品名',
     breed VARCHAR(100) COMMENT '品种',
     quantity INT NOT NULL COMMENT '数量',
-    status VARCHAR(20) DEFAULT 'PENDING' COMMENT '状态: PENDING待审/APPROVED已批/REJECTED已拒/COMPLETED已完成',
+    status VARCHAR(20) DEFAULT 'PENDING' COMMENT '状态: PENDING待审/APPROVED已批/SHIPPING运输中/COMPLETED已完成/REJECTED已拒',
     applicant VARCHAR(100) COMMENT '申请人',
     approver VARCHAR(100) COMMENT '审批人',
+    shipper VARCHAR(100) COMMENT '发货人',
+    driver VARCHAR(100) COMMENT '司机姓名',
+    shipped_at DATETIME COMMENT '发货时间',
+    estimated_arrival DATETIME COMMENT '预计到达时间',
     remark VARCHAR(500) COMMENT '备注',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) COMMENT='调拨申请表';
+
+CREATE TABLE health_check (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    transfer_id BIGINT NOT NULL COMMENT '关联调拨单ID',
+    live_pet_id BIGINT COMMENT '关联活体宠物ID(可空，整批打卡时为空)',
+    checker VARCHAR(100) NOT NULL COMMENT '打卡人(司机)',
+    location VARCHAR(200) NOT NULL COMMENT '打卡地点(服务区)',
+    temperature DECIMAL(4,1) COMMENT '体温(℃)',
+    mental_status VARCHAR(20) NOT NULL COMMENT '精神状态: GOOD好/NORMAL一般/POOR差',
+    remark VARCHAR(500) COMMENT '备注',
+    check_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '打卡时间',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_transfer_id (transfer_id),
+    INDEX idx_live_pet_id (live_pet_id)
+) COMMENT='健康打卡表';
 
 INSERT INTO store (name, address, is_warehouse) VALUES
 ('总仓库', '高新区天府大道总部', 1),

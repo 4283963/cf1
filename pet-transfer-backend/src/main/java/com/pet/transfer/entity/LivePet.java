@@ -19,6 +19,8 @@ public class LivePet {
 
     private Long storeId;
 
+    private Long transferId;
+
     private String name;
 
     private String species;
@@ -30,6 +32,8 @@ public class LivePet {
     private LocalDate birthDate;
 
     private String healthStatus;
+
+    private String transportStatus;
 
     private LocalDate lastVaccineDate;
 

@@ -14,6 +14,16 @@ const routes = [
     path: '/transfer',
     name: 'Transfer',
     component: () => import('../views/TransferView.vue')
+  },
+  {
+    path: '/pets',
+    name: 'Pets',
+    component: () => import('../views/LivePetView.vue')
+  },
+  {
+    path: '/driver',
+    name: 'Driver',
+    component: () => import('../views/DriverCheckinView.vue')
   }
 ]
 

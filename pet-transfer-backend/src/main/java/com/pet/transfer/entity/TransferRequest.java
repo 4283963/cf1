@@ -35,6 +35,14 @@ public class TransferRequest {
 
     private String approver;
 
+    private String shipper;
+
+    private String driver;
+
+    private LocalDateTime shippedAt;
+
+    private LocalDateTime estimatedArrival;
+
     private String remark;
 
     private LocalDateTime createdAt;

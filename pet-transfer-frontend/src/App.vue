@@ -13,6 +13,8 @@
       >
         <el-menu-item index="/inventory">📦 库存管理</el-menu-item>
         <el-menu-item index="/transfer">🔄 调拨管理</el-menu-item>
+        <el-menu-item index="/pets">🐱 宠物管理</el-menu-item>
+        <el-menu-item index="/driver">🚚 司机打卡</el-menu-item>
       </el-menu>
     </el-header>
     <el-main>
