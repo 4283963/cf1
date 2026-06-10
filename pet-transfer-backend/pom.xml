@@ -18,7 +18,7 @@
     <name>pet-transfer</name>
 
     <properties>
-        <java.version>11</java.version>
+        <java.version>17</java.version>
         <mybatis-plus.version>3.5.3.1</mybatis-plus.version>
     </properties>
 
@@ -37,6 +37,7 @@
         <dependency>
             <groupId>mysql</groupId>
             <artifactId>mysql-connector-java</artifactId>
+            <version>8.0.33</version>
             <scope>runtime</scope>
         </dependency>
 
